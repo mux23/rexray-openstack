@@ -1,0 +1,195 @@
+heat_template_version: 2015-04-30
+description: AutoScaling Docker with Swarm
+parameters:
+  image:
+    type: string
+    description: Image used for servers
+    default: trusty-server-cloudimg-amd64-disk1
+  key:
+    type: string
+    description: SSH key to connect to the servers
+    default: drew_keypair
+  swarm_flavor:
+    type: string
+    description: flavor used by the swarm servers
+    default: m1.medium
+  swarm_master_flavor:
+    type: string
+    description: flavor used by the swarm master server
+    default: m1.small
+resources:
+  swarm_master:
+    type: OS::Nova::Server
+    properties:
+      flavor: {get_param: swarm_master_flavor}
+      image: {get_param: image}
+      key_name: {get_param: key}
+      name: swarm_master
+      networks: [{network: {get_resource: swarm_network} }]
+      security_groups: 
+        - {get_resource: swarm_master_secgroup}
+      user_data_format: RAW
+      user_data:
+            str_replace:
+              template: |
+                #!/bin/bash -v
+                /usr/bin/curl -o /tmp/install-docker.sh https://get.docker.com
+                chmod +x /tmp/install-docker.sh
+                /tmp/install-docker.sh
+                /usr/sbin/usermod -G docker ubuntu
+                /usr/bin/curl -ssL -o /tmp/install-rexray.sh https://dl.bintray.com/emccode/rexray/install
+                chmod +x /tmp/install-rexray.sh
+                /tmp/install-rexray.sh
+                chgrp docker /etc/rexray/config.yml
+              params:
+                dummy: ""
+  swarm_worker_asg:
+    type: OS::Heat::AutoScalingGroup
+    properties:
+      min_size: 3
+      max_size: 5
+      resource: 
+        type: OS::Nova::Server
+        properties:
+          name: swarm_server
+          flavor: {get_param: swarm_flavor}
+          image: {get_param: image}
+          key_name: {get_param: key}
+          networks: [{network: {get_resource: swarm_network} }]
+          metadata: {"metering.stack": {get_param: "OS::stack_id"}}
+          security_groups: 
+            - {get_resource: swarm_worker_secgroup }
+          user_data:
+            str_replace:
+              template: |
+                #!/bin/bash -v
+                /usr/bin/curl -o /tmp/install-docker.sh https://get.docker.com
+                chmod +x /tmp/install-docker.sh
+                /tmp/install-docker.sh
+                /usr/sbin/usermod -G docker ubuntu
+                /usr/bin/curl -ssL -o /tmp/install-rexray.sh https://dl.bintray.com/emccode/rexray/install
+                chmod +x /tmp/install-rexray.sh
+                /tmp/install-rexray.sh
+                chgrp docker /etc/rexray/config.yml
+              params:
+                dummy: ""
+  swarm_master_secgroup:
+     type: OS::Neutron::SecurityGroup
+     properties:
+       rules:
+          - protocol: icmp
+            remote_ip_prefix: 0.0.0.0/0
+          - protocol: tcp
+            remote_ip_prefix: 0.0.0.0/0
+            port_range_min: 22
+            port_range_max: 22
+          - protocol: tcp
+            remote_ip_prefix: 0.0.0.0/0
+            port_range_min: 80
+            port_range_max: 80
+  swarm_worker_secgroup:
+     type: OS::Neutron::SecurityGroup
+     properties:
+      rules:
+        - protocol: icmp
+          remote_ip_prefix: 0.0.0.0/0
+        - protocol: tcp
+          remote_ip_prefix: 0.0.0.0/0
+          port_range_min: 22
+          port_range_max: 22
+        - protocol: tcp
+          remote_ip_prefix: 0.0.0.0/0
+          port_range_min: 80
+          port_range_max: 80
+  swarm_worker_scaleup_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: {get_resource: swarm_worker_asg}
+      cooldown: 60
+      scaling_adjustment: 1
+  swarm_worker_scaledown_policy:
+    type: OS::Heat::ScalingPolicy
+    properties:
+      adjustment_type: change_in_capacity
+      auto_scaling_group_id: {get_resource: swarm_worker_asg}
+      cooldown: 60
+      scaling_adjustment: -1
+  swarm_network:
+    type: OS::Neutron::Net
+    properties:
+      name: swarm_net
+  swarm_subnet:
+    type: OS::Neutron::Subnet
+    properties:
+      network: {get_resource: swarm_network}
+      cidr: 192.168.23.0/24
+      dns_nameservers: [ "8.8.8.8", "8.8.4.4" ]
+      ip_version: 4
+  swarm_router:
+     type: OS::Neutron::Router
+     properties:
+       external_gateway_info: { network: public }
+  swarm_router_interface:
+     type: OS::Neutron::RouterInterface
+     properties:
+       router_id: { get_resource: swarm_router }
+       subnet: { get_resource: swarm_subnet }
+  monitor:
+    type: OS::Neutron::HealthMonitor
+    properties:
+      type: TCP
+      delay: 5
+      max_retries: 5
+      timeout: 5
+
+outputs:
+  scale_up_url:
+    description: >
+      This URL is the webhook to scale up the group.  You can invoke
+      the scale-up operation by doing an HTTP POST to this URL; no
+      body nor extra headers are needed.
+    value: {get_attr: [swarm_worker_scaleup_policy, alarm_url]}
+  scale_dn_url:
+    description: >
+      This URL is the webhook to scale down the group.  You can invoke
+      the scale-down operation by doing an HTTP POST to this URL; no
+      body nor extra headers are needed.
+    value: {get_attr: [swarm_worker_scaledown_policy, alarm_url]}
+  asg_size:
+    description: >
+      This is the current size of the auto scaling group.
+    value: {get_attr: [swarm_worker_asg, current_size]}
+  server_list:
+    description: >
+      This is a list of server names that are part of the group.
+    value: {get_attr: [swarm_worker_asg, outputs_list, name]}
+  networks:
+    description: >
+      This is a map of server resources and their networks.
+    value: {get_attr: [swarm_worker_asg, outputs, networks]}
+  server_ips:
+    description: >
+      This is a list of first ip addresses of the servers in the group
+      for a specified network.
+    value: {get_attr: [swarm_worker_asg, outputs_list, networks, {get_param: network}, 0]}
+  ceilometer_query: 
+    value:
+      str_replace:
+        template: >
+          ceilometer statistics -m cpu_util
+          -q metadata.user_metadata.stack=stackval -p 600 -a avg
+        params:
+          stackval: { get_param: "OS::stack_id" }
+    description: >
+      This is a Ceilometer query for statistics on the cpu_util meter
+      Samples about OS::Nova::Server instances in this stack.  The -q
+      parameter selects Samples according to the subject's metadata.
+      When a VM's metadata includes an item of the form metering.X=Y,
+      the corresponding Ceilometer resource has a metadata item of the
+      form user_metadata.X=Y and samples about resources so tagged can
+      be queried with a Ceilometer query term of the form
+      metadata.user_metadata.X=Y.  In this case the nested stacks give
+      their VMs metadata that is passed as a nested stack parameter,
+      and this stack passes a metadata of the form metering.stack=Y,
+      where Y is this stack's ID.
