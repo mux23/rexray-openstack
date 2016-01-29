@@ -40,6 +40,20 @@ resources:
                 /usr/bin/curl -ssL -o /tmp/install-rexray.sh https://dl.bintray.com/emccode/rexray/install
                 chmod +x /tmp/install-rexray.sh
                 /tmp/install-rexray.sh
+                cat << EOF >> /etc/rexray/config.yml
+                rexray:
+                  storageDrivers:
+                    - openstack
+                  volume:
+                    mount:
+                      prempt: true
+                openstack:
+                  authUrl: http://172.24.4.1:35357/v2.0
+                  username: admin
+                  password: CHANGEME
+                  tenantName: admin
+                  regionName: RegionOne
+                EOF
                 chgrp docker /etc/rexray/config.yml
               params:
                 dummy: ""
@@ -70,6 +84,20 @@ resources:
                 /usr/bin/curl -ssL -o /tmp/install-rexray.sh https://dl.bintray.com/emccode/rexray/install
                 chmod +x /tmp/install-rexray.sh
                 /tmp/install-rexray.sh
+                cat << EOF >> /etc/rexray/config.yml
+                rexray:
+                  storageDrivers:
+                    - openstack
+                  volume:
+                    mount:
+                      prempt: true
+                openstack:
+                  authUrl: http://172.24.4.1:35357/v2.0
+                  username: admin
+                  password: CHANGEME
+                  tenantName: admin
+                  regionName: RegionOne
+                EOF
                 chgrp docker /etc/rexray/config.yml
               params:
                 dummy: ""
