@@ -1,9 +1,10 @@
 # rexray-openstack
-* support files for REX-Ray in OpenStack
+##wat
+Support files for my REX-Ray in OpenStack conference talk.
 
 In this repository you'll find supporting files for deploying a cluster of Docker servers using OpenStack Heat. These templates were created to support my talk at the OpenStack Summit in Austin, Texas in April 2016 - here is the abstract of that talk:
 
-> **Persistent Storage For Containers Using Cinder**
+> **Persistent Storage For Containers Using Cinder**   
 > Everyone loves containers, but nobody wants to talk about the elephant in the room - how can you make storage persist when the whole point of containers is that they have short lifespans? In this presentation we'll discuss how to use the REX-Ray volume driver, backed by Cinder, to provide persistent, preemptable storage to Docker container servers hosted on OpenStack.
 
 REX-Ray is a Docker volume drive plugin - it's really cool, and you can find it [here, on the EMC {code} github repo](https://github.com/emccode/rexray). Yay storage abstraction!
