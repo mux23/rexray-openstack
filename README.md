@@ -28,4 +28,5 @@ The **heat_template.yaml** file will deploy four virtual machines - one 'master'
 
 To use the Heat template, once DevStack is running, log into the Horizon dashboard and go to the 'Orchestration' tab, then click 'Stacks', and then 'Launch Stack' - when prompted for a template, point the file selector tool at the *heat_template.yaml* file.
 
-A video of this stuff in action is available at https://www.youtube.com/watch?v=3MKCfp4XsiQ
+A video of this stuff in action is available at https://www.youtube.com/watch?v=3MKCfp4XsiQ  
+and blog entry at https://blog.codedellemc.com/2016/01/28/deploying-a-docker-cluster-with-openstack-heat/
